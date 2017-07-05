@@ -24,6 +24,7 @@
          check
          check-exn
          check-not-exn
+         check/exn
          check-true
          check-false
          check-pred
@@ -212,6 +213,47 @@
             (make-check-info 'exception exn))
            (lambda () (fail-check))))])
     (thunk)))
+
+;; check/exn lets you check things *about* the exception, for example:
+;;   (check/exn
+;;    (lambda ()
+;;      (raise-syntax-error #f "bad syntax" #'(It 's the wrong syntax!)))
+;;    (lambda (exn)
+;;      (check-pred exn:fail:syntax? exn)
+;;      (check-equal? (syntax->datum (first (exn:fail:syntax-exprs exn)))
+;;                    '(It (quote s) the wrong syntax!))))
+(define-check (check/exn thunk exn-check-proc)
+  (raise-error-if-not-thunk 'check/exn thunk)
+  (let/ec succeed
+    (with-handlers
+        (;; rethrow check failures if we aren't looking
+         ;; for them
+         [exn:test:check?
+          (lambda (exn)
+            (refail-check exn))]
+         ;; catch any other exception and check it using exn-check-proc
+         [exn?
+          (lambda (exn)
+            (with-handlers ([exn:test:check?
+                             (lambda (fail)
+                               (with-check-info*
+                                (list
+                                 (make-check-message "Wrong exception raised")
+                                 (make-check-info 'exn-message (exn-message exn))
+                                 (make-check-info 'exn exn)
+                                 (make-check-info 'failure (nested-info (exn:test:check-stack fail))))
+                                fail-check))])
+              ;; run the actual checks
+              (parameterize ([current-check-info '()]
+                             [current-check-around (λ (t) (t))])
+                (exn-check-proc exn))
+              (succeed #t)))])
+      (thunk))
+    (with-check-info*
+     (list (make-check-message "No exception raised"))
+     (lambda () (fail-check)))))
+
+
 
 (define-syntax-rule (define-simple-check-values [header body ...] ...)
   (begin (define-simple-check header body ...) ...))

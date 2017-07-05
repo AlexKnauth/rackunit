@@ -163,6 +163,45 @@ the check fails.
 
 }
 
+@defproc[(check/exn [thunk (-> any)]
+                    [exn-check-proc (-> exn? any/c)]
+                    [message string? ""])
+         void?]{
+
+Checks that @racket[thunk] raises an exception and that the exception
+passes the checks run by @racket[exn-check-proc].
+
+For example, the following checks succeed:
+
+@interaction[#:eval rackunit-eval
+  (check/exn
+   (lambda ()
+     (error 'hi "the right error for the job"))
+   (lambda (exn)
+     (check-regexp-match #rx"right error" (exn-message exn))))
+  (check/exn
+   (lambda ()
+     (raise-syntax-error #f "bad syntax" #'(It 's the wrong syntax!)))
+   (lambda (exn)
+     (check-pred exn:fail:syntax? exn)
+     (check-equal? (syntax->datum (car (exn:fail:syntax-exprs exn)))
+                   '(It (quote s) the wrong syntax!))))
+]
+
+The following checks fail:
+
+@interaction[#:eval rackunit-eval
+  (check/exn (lambda ()
+               (error 'hi "just an exn:fail"))
+             (lambda (exn)
+               (check-pred exn:fail:syntax? exn)))
+  (check/exn (lambda ()
+               "I'm fine, there's nothing wrong here, how are you?")
+             (lambda (exn)
+               (void)))
+]
+}
+
 @defproc[(check-regexp-match (regexp regexp?)
                              (string string?))
          void?]{

@@ -98,6 +98,7 @@
          check
          check-exn
          check-not-exn
+         check/exn
          check-true
          check-false
          check-pred
